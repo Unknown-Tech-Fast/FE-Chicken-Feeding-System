@@ -1,198 +1,371 @@
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 import { useLocation } from "react-router-dom"
-import { toast } from "sonner"
-import { FormField, SelectInput } from "@/components/form-fields"
-import { Badge } from "@/components/ui/badge"
+import { FormField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { coaAccounts, partners } from "@/data/mock-data"
-import { currentMonth, formatMonth } from "@/lib/format"
+import { formatNumber } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import {
+  downloadFinanceReport,
+  previewFinanceReport,
+  type FinanceReport,
+  type PivotPreview,
+  type PivotRows,
+  type ReportFilters,
+} from "@/utils/api/endpoints/reporting"
 import {
   reportCategories,
   reportOptions,
   type ReportCategory,
 } from "./report-options"
 
-function ReportForm({ category }: { category: ReportCategory }) {
-  const config = reportOptions[category]
-  const [kind, setKind] = useState(config.options[0].value)
-  const [month, setMonth] = useState(currentMonth)
-  const [scope, setScope] = useState("all")
-  const [selection, setSelection] = useState("")
+function PreviewTable({
+  title,
+  rows,
+  amountStart,
+}: {
+  title: string
+  rows: PivotRows
+  amountStart: number
+}) {
+  return (
+    <div className="space-y-3">
+      <h4 className="font-medium">{title}</h4>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Tidak ada data untuk filter ini.
+        </p>
+      ) : (
+        <div
+          className="max-h-96 overflow-auto rounded-md border"
+          tabIndex={0}
+          role="region"
+          aria-label={title}
+        >
+          <table className="w-full text-sm">
+            <caption className="sr-only">{title}</caption>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-b last:border-0">
+                  {row.map((cell, index) => (
+                    <td
+                      key={index}
+                      className={cn(
+                        "px-3 py-2 whitespace-nowrap tabular-nums",
+                        typeof cell === "number" &&
+                          index >= amountStart &&
+                          "text-right",
+                        typeof cell === "number" &&
+                          index >= amountStart &&
+                          cell < 0 &&
+                          "text-red-700 dark:text-red-400",
+                        typeof cell === "number" &&
+                          index >= amountStart &&
+                          cell > 0 &&
+                          "text-green-700 dark:text-green-400"
+                      )}
+                    >
+                      {typeof cell === "number" && index >= amountStart
+                        ? formatNumber(cell)
+                        : (cell ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReportPreview({ data }: { data: PivotPreview }) {
+  const tables: {
+    title: string
+    rows: PivotRows | undefined
+    amountStart: number
+  }[] = [
+    {
+      title: data.summary_title ?? "Ringkasan OVK",
+      rows: data.summary_rows,
+      amountStart: 1,
+    },
+    {
+      title: data.detail_title ?? "Detail OVK",
+      rows: data.detail_rows,
+      amountStart: 4,
+    },
+    {
+      title: "Mutasi Bulanan per Akun",
+      rows: data.pivot1_rows,
+      amountStart: 1,
+    },
+    {
+      title: "Mutasi per Bulan, Akun, dan Lokasi Farm",
+      rows: data.pivot2_rows,
+      amountStart: 3,
+    },
+    {
+      title: "Akun Analitik per Bulan dan Tipe Internal",
+      rows: data.pivot3_rows,
+      amountStart: 4,
+    },
+    {
+      title: "Rekap Pembelian per Rekanan",
+      rows: data.pivot4_rows,
+      amountStart: 3,
+    },
+  ]
+  return (
+    <div className="space-y-6 border-t pt-5">
+      {tables
+        .filter((table) => table.rows !== undefined)
+        .map((table) => (
+          <PreviewTable
+            key={table.title}
+            title={table.title}
+            rows={table.rows!}
+            amountStart={table.amountStart}
+          />
+        ))}
+    </div>
+  )
+}
+
+function ReportForm({ category }: { category: FinanceReport }) {
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [monthFrom, setMonthFrom] = useState("1")
+  const [monthTo, setMonthTo] = useState("12")
+  const [importId, setImportId] = useState("")
   const [error, setError] = useState("")
-  const [monthError, setMonthError] = useState("")
-  const selectedKind = config.options.find((option) => option.value === kind)!
-  const filter = selectedKind.filter
-  const scopeId = category + "-scope"
-  const selectionId = category + "-selection"
-  const monthId = category + "-month"
-  const options =
-    filter === "account"
-      ? coaAccounts.map((row) => ({
-          value: row.code,
-          label: row.code + " · " + row.name,
-        }))
-      : partners.map((row) => ({ value: row.id, label: row.name }))
+  const [busy, setBusy] = useState<"download" | "preview" | null>(null)
+  const [preview, setPreview] = useState<PivotPreview | null>(null)
+  const pending = useRef(false)
+  const hasPeriod = category !== "chicken"
+  const hasImport = category !== "ovk"
+
+  function changeFilter(setter: (value: string) => void, value: string) {
+    setter(value)
+    setPreview(null)
+    setError("")
+  }
+
+  async function generate(action: "download" | "preview") {
+    if (pending.current) return
+    const filters: ReportFilters = {}
+    if (hasPeriod) {
+      if (
+        (year !== "" &&
+          (!/^\d{4}$/.test(year) ||
+            Number(year) < 2000 ||
+            Number(year) > 2100)) ||
+        (category === "ovk" && year === "")
+      ) {
+        setError("Tahun harus antara 2000 dan 2100.")
+        return
+      }
+      if (
+        ![monthFrom, monthTo].every(
+          (value) =>
+            /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 12
+        ) ||
+        Number(monthFrom) > Number(monthTo)
+      ) {
+        setError(
+          "Bulan harus antara 1 dan 12. Bulan awal tidak boleh melebihi bulan akhir."
+        )
+        return
+      }
+      if (year) filters.year = Number(year)
+      filters.month_from = Number(monthFrom)
+      filters.month_to = Number(monthTo)
+    }
+    if (hasImport && importId) {
+      if (
+        !/^[1-9]\d*$/.test(importId) ||
+        !Number.isSafeInteger(Number(importId))
+      ) {
+        setError("ID import harus berupa bilangan bulat positif.")
+        return
+      }
+      filters.import_id = Number(importId)
+    }
+    pending.current = true
+    setBusy(action)
+    setError("")
+    setPreview(null)
+    try {
+      if (action === "preview" && category !== "chicken") {
+        const result = await previewFinanceReport(category, filters)
+        if (!result.success) throw new Error("Preview gagal dimuat.")
+        setPreview(result.data)
+      } else {
+        await downloadFinanceReport(category, filters)
+      }
+    } catch {
+      setError(
+        action === "preview"
+          ? "Preview gagal dimuat. Periksa filter atau coba lagi."
+          : "Unduhan gagal. Periksa filter atau coba lagi."
+      )
+    } finally {
+      pending.current = false
+      setBusy(null)
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const period = month || currentMonth()
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
-      setMonthError("Pilih periode bulan yang valid.")
-      return
-    }
-    setMonth(period)
-    setMonthError("")
-    if (
-      filter &&
-      scope === "specific" &&
-      !options.some((option) => option.value === selection)
-    ) {
-      setError(
-        filter === "account"
-          ? "Pilih akun terlebih dahulu."
-          : "Pilih rekanan terlebih dahulu."
-      )
-      return
-    }
-    setError("")
-    toast.info("API generate/download laporan belum tersedia", {
-      description:
-        "Laporan " +
-        config.label +
-        " periode " +
-        formatMonth(period) +
-        " belum dibuat. Tidak ada file yang diunduh.",
-    })
+    void generate("download")
   }
 
   return (
-    <form onSubmit={submit} className="space-y-6 p-5 md:p-6">
+    <form
+      onSubmit={submit}
+      className="space-y-6 p-5 md:p-6"
+      aria-busy={busy !== null}
+    >
       <div>
-        <h3 className="text-lg font-semibold">Laporan {config.label}</h3>
+        <h3 className="text-lg font-semibold">
+          Laporan {reportOptions[category].label}
+        </h3>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          Atur periode dan cakupan laporan. Opsi pilihan menggunakan data mock.
+          {category === "chicken"
+            ? "Laporan pivot Ayam mencakup seluruh periode dalam data import yang dipilih."
+            : "Pilih tahun dan rentang bulan untuk laporan pivot."}
         </p>
       </div>
-      <div className="grid gap-5 md:grid-cols-2">
-        <FormField id={category + "-kind"} label="Jenis Laporan" required>
-          <SelectInput
-            id={category + "-kind"}
-            value={kind}
-            required
-            options={config.options}
-            onChange={(value) => {
-              setKind(value)
-              setScope("all")
-              setSelection("")
-              setError("")
-            }}
-          />
-        </FormField>
-        <FormField
-          id={monthId}
-          label="Periode Bulan"
-          error={monthError}
-          help="Jika dikosongkan, laporan menggunakan bulan berjalan."
-        >
-          <Input
-            id={monthId}
-            type="month"
-            value={month}
-            aria-invalid={Boolean(monthError)}
-            aria-describedby={
-              monthId + "-help" + (monthError ? " " + monthId + "-error" : "")
-            }
-            onChange={(event) => {
-              setMonth(event.target.value)
-              setMonthError("")
-            }}
-            className="h-10"
-          />
-        </FormField>
-        {filter && (
+      <fieldset disabled={busy !== null} className="grid gap-5 md:grid-cols-2">
+        <legend className="sr-only">Filter laporan</legend>
+        {hasPeriod && (
+          <>
+            <FormField
+              id={`${category}-year`}
+              label="Tahun"
+              required={category === "ovk"}
+              help={
+                category === "feed"
+                  ? "Kosongkan untuk seluruh tahun."
+                  : undefined
+              }
+            >
+              <Input
+                id={`${category}-year`}
+                type="number"
+                min={2000}
+                max={2100}
+                step={1}
+                required={category === "ovk"}
+                value={year}
+                onChange={(event) => changeFilter(setYear, event.target.value)}
+                aria-describedby={
+                  category === "feed" ? `${category}-year-help` : undefined
+                }
+              />
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField id={`${category}-from`} label="Bulan Awal" required>
+                <Input
+                  id={`${category}-from`}
+                  type="number"
+                  min={1}
+                  max={12}
+                  step={1}
+                  required
+                  value={monthFrom}
+                  onChange={(event) =>
+                    changeFilter(setMonthFrom, event.target.value)
+                  }
+                />
+              </FormField>
+              <FormField id={`${category}-to`} label="Bulan Akhir" required>
+                <Input
+                  id={`${category}-to`}
+                  type="number"
+                  min={1}
+                  max={12}
+                  step={1}
+                  required
+                  value={monthTo}
+                  onChange={(event) =>
+                    changeFilter(setMonthTo, event.target.value)
+                  }
+                />
+              </FormField>
+            </div>
+          </>
+        )}
+        {hasImport && (
           <FormField
-            id={scopeId}
-            label={filter === "account" ? "Filter Akun" : "Filter Rekanan"}
+            id={`${category}-import`}
+            label="ID Import"
+            help="Opsional. Kosongkan untuk seluruh import."
           >
-            <SelectInput
-              id={scopeId}
-              value={scope}
-              options={[
-                {
-                  value: "all",
-                  label: filter === "account" ? "Semua Akun" : "Semua Rekanan",
-                },
-                {
-                  value: "specific",
-                  label:
-                    filter === "account" ? "Akun Tertentu" : "Rekanan Tertentu",
-                },
-              ]}
-              onChange={(value) => {
-                setScope(value)
-                setSelection("")
-                setError("")
-              }}
+            <Input
+              id={`${category}-import`}
+              type="number"
+              min={1}
+              step={1}
+              value={importId}
+              onChange={(event) =>
+                changeFilter(setImportId, event.target.value)
+              }
+              aria-describedby={`${category}-import-help`}
             />
           </FormField>
         )}
-        {filter && scope === "specific" && (
-          <FormField
-            id={selectionId}
-            label={filter === "account" ? "Pilih Akun" : "Pilih Rekanan"}
-            required
-            error={error}
-          >
-            <SelectInput
-              id={selectionId}
-              value={selection}
-              required
-              invalid={Boolean(error)}
-              options={options}
-              onChange={(value) => {
-                setSelection(value)
-                setError("")
-              }}
-            />
-          </FormField>
-        )}
-      </div>
+      </fieldset>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <div className="flex flex-col items-start justify-between gap-4 border-t pt-5 sm:flex-row sm:items-center">
-        <p className="text-sm text-muted-foreground">
-          Format keluaran: Excel · API belum tersedia.
+        <p className="text-sm text-muted-foreground" role="status">
+          {busy
+            ? busy === "preview"
+              ? "Memuat preview…"
+              : "Menyiapkan unduhan…"
+            : "Format keluaran: Excel (.xlsx)"}
         </p>
-        <Button
-          type="submit"
-          variant="outline"
-          className="h-10 rounded-full border-primary px-5 text-primary"
-        >
-          Download Report (Excel)
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          {hasPeriod && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy !== null}
+              onClick={() => void generate("preview")}
+            >
+              Preview Laporan
+            </Button>
+          )}
+          <Button type="submit" disabled={busy !== null}>
+            Download Report (Excel)
+          </Button>
+        </div>
       </div>
+      {preview && <ReportPreview data={preview} />}
     </form>
   )
 }
 
 export function ReportingPage() {
   const { pathname } = useLocation()
-  const initialCategory: ReportCategory = pathname.endsWith("/general-ledger")
-    ? "ledger"
-    : pathname.endsWith("/ayam")
-      ? "chicken"
-      : pathname.endsWith("/pakan")
-        ? "feed"
-        : pathname.endsWith("/ovk")
-          ? "ovk"
-          : "ledger"
+  const initialCategory: ReportCategory = pathname.endsWith("/ayam")
+    ? "chicken"
+    : pathname.endsWith("/pakan")
+      ? "feed"
+      : pathname.endsWith("/ovk")
+        ? "ovk"
+        : "ledger"
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex flex-wrap items-center gap-3 border-b p-5 md:px-6">
+      <div className="border-b p-5 md:px-6">
         <h2 className="font-semibold">Pusat Laporan</h2>
-        <Badge variant="secondary">Data mock</Badge>
       </div>
-      <Tabs defaultValue={initialCategory} className="gap-0">
+      <Tabs key={pathname} defaultValue={initialCategory} className="gap-0">
         <div className="overflow-x-auto border-b px-5 py-3 md:px-6">
           <TabsList
             aria-label="Kategori laporan"
@@ -211,7 +384,16 @@ export function ReportingPage() {
         </div>
         {reportCategories.map((category) => (
           <TabsContent key={category} value={category} keepMounted>
-            <ReportForm category={category} />
+            {category === "ledger" ? (
+              <div className="space-y-2 p-5 md:p-6">
+                <h3 className="text-lg font-semibold">Laporan Buku Besar</h3>
+                <p className="text-sm text-muted-foreground">
+                  Laporan Buku Besar belum tersedia.
+                </p>
+              </div>
+            ) : (
+              <ReportForm category={category} />
+            )}
           </TabsContent>
         ))}
       </Tabs>

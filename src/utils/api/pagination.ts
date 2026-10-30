@@ -12,7 +12,7 @@ import type { LaravelPaginated, Paginated } from "./types"
 export const normalizePaginated = <T>(
   payload: unknown,
   fallbackPage = 1,
-  fallbackPageSize = 10,
+  fallbackPageSize = 10
 ): Paginated<T> => {
   if (Array.isArray(payload)) {
     return {
@@ -26,7 +26,13 @@ export const normalizePaginated = <T>(
 
   const root = payload as Record<string, unknown> | null | undefined
   if (!root) {
-    return { items: [], page: fallbackPage, pageSize: fallbackPageSize, totalItems: 0, totalPages: 0 }
+    return {
+      items: [],
+      page: fallbackPage,
+      pageSize: fallbackPageSize,
+      totalItems: 0,
+      totalPages: 0,
+    }
   }
 
   // Double wrap: { data: { data: [...] } }
@@ -37,12 +43,16 @@ export const normalizePaginated = <T>(
 
   const raw = root as unknown as LaravelPaginated<T>
   const items = Array.isArray(raw.data) ? raw.data : []
-  const meta = raw.meta
+  const meta =
+    (root.pagination as LaravelPaginated<T>["meta"] | undefined) ?? raw.meta
 
   const page = meta?.current_page ?? raw.current_page ?? fallbackPage
   const pageSize = meta?.per_page ?? raw.per_page ?? fallbackPageSize
   const totalItems = meta?.total ?? raw.total ?? items.length
-  const totalPages = meta?.last_page ?? raw.last_page ?? Math.max(1, Math.ceil(totalItems / (pageSize || 1)))
+  const totalPages =
+    meta?.last_page ??
+    raw.last_page ??
+    Math.max(1, Math.ceil(totalItems / (pageSize || 1)))
 
   return { items, page, pageSize, totalItems, totalPages }
 }

@@ -1,79 +1,64 @@
 import { z } from "zod"
+import type {
+  TransaksiAyamInput,
+  TransaksiAyamRow,
+} from "@/utils/api/endpoints/chicken"
 
-export const TRANSAKSI_TYPE_OPTIONS = ["Ayam Laying", "Ayam Growing"] as const
+const nonnegativeInteger = (label: string) =>
+  z
+    .number({ message: `${label} harus berupa angka` })
+    .int(`${label} harus bilangan bulat`)
+    .min(0, `${label} tidak boleh negatif`)
+const relationId = (label: string) =>
+  z
+    .number({ message: `Pilih ${label}` })
+    .int()
+    .positive(`Pilih ${label}`)
 
 export const transaksiAyamSchema = z.object({
-  periodeBulan: z
-    .string()
-    .trim()
-    .min(1, "Periode bulan wajib diisi")
-    .max(30, "Periode bulan maksimal 30 karakter"),
-  type: z
-    .string()
-    .refine(
-      (value) => (TRANSAKSI_TYPE_OPTIONS as readonly string[]).includes(value),
-      {
-        message: "Type wajib dipilih",
-      }
-    ),
-  kandang: z
-    .string()
-    .trim()
-    .min(1, "Kandang wajib diisi")
-    .max(50, "Kandang maksimal 50 karakter"),
-  flockNo: z
-    .string()
-    .trim()
-    .min(1, "Flock No wajib diisi")
-    .max(30, "Flock No maksimal 30 karakter"),
-  umurMinggu: z.coerce
-    .number({ message: "Umur harus berupa angka" })
-    .int("Umur harus bilangan bulat")
-    .min(0, "Umur minimal 0 minggu")
-    .max(200, "Umur maksimal 200 minggu"),
-  ayamMasuk: z.coerce
-    .number({ message: "Ayam masuk harus berupa angka" })
-    .int("Ayam masuk harus bilangan bulat")
-    .min(0, "Ayam masuk tidak boleh negatif")
-    .max(1000000, "Ayam masuk terlalu besar"),
-  ayamKeluar: z.coerce
-    .number({ message: "Ayam keluar harus berupa angka" })
-    .int("Ayam keluar harus bilangan bulat")
-    .min(0, "Ayam keluar tidak boleh negatif")
-    .max(1000000, "Ayam keluar terlalu besar"),
+  periode_id: relationId("periode"),
+  kandang_id: relationId("kandang"),
+  master_ayam_id: relationId("fase ayam"),
+  flock_no: z.string().trim().max(100, "Flock No maksimal 100 karakter"),
+  umur_minggu: nonnegativeInteger("Umur").max(
+    65535,
+    "Umur maksimal 65535 minggu"
+  ),
+  so_ekor: nonnegativeInteger("Saldo awal"),
+  in_ekor: nonnegativeInteger("Ayam masuk"),
+  out_ekor: nonnegativeInteger("Ayam keluar"),
+  sa_ekor: nonnegativeInteger("Saldo akhir"),
+  mati_ekor: nonnegativeInteger("Ayam mati"),
+  jual_ekor: nonnegativeInteger("Ayam dijual"),
+  koreksi_ekor: z
+    .number({ message: "Koreksi harus berupa angka" })
+    .int("Koreksi harus bilangan bulat"),
 })
-  // Minimal salah satu > 0 — transaksi tanpa pergerakan ekor tidak sah.
-  .refine((values) => values.ayamMasuk > 0 || values.ayamKeluar > 0, {
-    message: "Isi Ayam Masuk atau Ayam Keluar, keduanya tidak boleh 0",
-    path: ["ayamMasuk"],
-  })
-
 export type TransaksiAyamFormValues = z.infer<typeof transaksiAyamSchema>
-
-export type TransaksiAyamFormInput = z.input<typeof transaksiAyamSchema>
-
-export const TRANSAKSI_AYAM_DEFAULT_VALUES: TransaksiAyamFormValues = {
-  periodeBulan: "",
-  type: "",
-  kandang: "",
-  flockNo: "",
-  umurMinggu: 1,
-  ayamMasuk: 0,
-  ayamKeluar: 0,
+export const TRANSAKSI_AYAM_DEFAULT_VALUES: TransaksiAyamInput = {
+  periode_id: 0,
+  kandang_id: 0,
+  master_ayam_id: 0,
+  flock_no: "",
+  umur_minggu: 0,
+  so_ekor: 0,
+  in_ekor: 0,
+  out_ekor: 0,
+  sa_ekor: 0,
+  mati_ekor: 0,
+  jual_ekor: 0,
+  koreksi_ekor: 0,
 }
+export const transaksiLabel = (row: TransaksiAyamRow) =>
+  row.flock_no || `Transaksi #${row.id}`
 
-/**
- * Rumus mutasi — satu-satunya tempat perhitungan ini ditulis.
- * Dipakai tabel, form (preview), dan mock supaya hasilnya tidak bisa berbeda.
- */
-export const hitungMutasi = (ayamMasuk: number, ayamKeluar: number) =>
-  Number(ayamMasuk) - Number(ayamKeluar)
-
-/** Format mutasi untuk tampilan: `+1.450`, `−950`, atau `0`. */
-export const formatMutasi = (mutasi: number) => {
-  const n = Number(mutasi) || 0
-  const abs = new Intl.NumberFormat("id-ID").format(Math.abs(n))
-  if (n === 0) return "0"
-  // U+2212 (minus) lebih rapi daripada hyphen pada angka tabular.
-  return n > 0 ? `+${abs}` : `−${abs}`
-}
+export const TRANSAKSI_AYAM_COUNT_FIELDS = [
+  { name: "umur_minggu", label: "Umur (minggu)", max: 65535 },
+  { name: "so_ekor", label: "Saldo Awal (ekor)" },
+  { name: "in_ekor", label: "Ayam Masuk (ekor)" },
+  { name: "out_ekor", label: "Ayam Keluar (ekor)" },
+  { name: "sa_ekor", label: "Saldo Akhir (ekor)" },
+  { name: "mati_ekor", label: "Ayam Mati (ekor)" },
+  { name: "jual_ekor", label: "Ayam Dijual (ekor)" },
+  { name: "koreksi_ekor", label: "Koreksi (ekor)" },
+] as const

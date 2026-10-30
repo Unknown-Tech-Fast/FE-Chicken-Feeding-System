@@ -5,6 +5,9 @@ import { AppLayout } from "@/components/app-layout"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Skeleton } from "@/components/ui/skeleton"
 import { routes, findRouteKey } from "@/routes"
+import { useAuth } from "@/auth/auth-context"
+import LoginPage from "@/pages/login-page"
+import { Button } from "@/components/ui/button"
 
 function PageFallback() {
   return (
@@ -48,7 +51,43 @@ function NotFound() {
  * File ini tidak perlu diubah saat menambah halaman.
  */
 export function App() {
-  const { pathname } = useLocation()
+  const { user, loading, error, retry } = useAuth()
+  const location = useLocation()
+  const { pathname } = location
+
+  if (loading || error)
+    return (
+      <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
+        {error ? (
+          <>
+            <p role="alert">{error}</p>
+            <Button onClick={retry}>Coba lagi</Button>
+          </>
+        ) : (
+          <p role="status">Memeriksa sesi…</p>
+        )}
+      </main>
+    )
+  if (pathname === "/login") {
+    const from = location.state?.from
+    const target =
+      typeof from === "string" &&
+      from.startsWith("/") &&
+      !from.startsWith("//") &&
+      !from.includes("\\") &&
+      from.split(/[?#]/)[0] !== "/login"
+        ? from
+        : routes.chicken.path
+    return user ? <Navigate to={target} replace /> : <LoginPage />
+  }
+  if (!user)
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: location.pathname + location.search + location.hash }}
+        replace
+      />
+    )
 
   // "/" diarahkan ke halaman utama, bukan dianggap 404.
   if (pathname === "/") {

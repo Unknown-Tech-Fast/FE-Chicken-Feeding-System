@@ -19,7 +19,10 @@ const notifySessionExpired = (reason?: unknown) => {
 }
 
 export const tokenStorage = {
-  get: () => (typeof window === "undefined" ? null : localStorage.getItem(STORAGE_KEYS.token)),
+  get: () =>
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem(STORAGE_KEYS.token),
   set: (token: string) => localStorage.setItem(STORAGE_KEYS.token, token),
   clear: () => {
     localStorage.removeItem(STORAGE_KEYS.token)
@@ -30,13 +33,16 @@ export const tokenStorage = {
 export const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT_MS,
+  headers: { Accept: "application/json" },
 })
 
-const isPublicPath = (url = "") => SKIP_AUTH_PATHS.some((path) => url.includes(path))
+const isPublicPath = (url = "") =>
+  SKIP_AUTH_PATHS.some((path) => url.includes(path))
 
 axiosInstance.interceptors.request.use((config) => {
   const token = tokenStorage.get()
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  if (token && !isPublicPath(config.url))
+    config.headers.Authorization = `Bearer ${token}`
 
   const offsetInMinutes = new Date().getTimezoneOffset()
   const abs = Math.abs(offsetInMinutes)
@@ -48,17 +54,18 @@ axiosInstance.interceptors.request.use((config) => {
 })
 
 axiosInstance.interceptors.response.use(
-  (response) => {
-    const rotated = response.headers["x-new-token"]
-    if (typeof rotated === "string" && rotated.length > 0) tokenStorage.set(rotated)
-    return response
-  },
+  (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401 && !isPublicPath(error.config?.url)) {
+    if (
+      error.response?.status === 401 &&
+      !isPublicPath(error.config?.url) &&
+      error.config?.headers.Authorization === `Bearer ${tokenStorage.get()}`
+    ) {
+      tokenStorage.clear()
       notifySessionExpired(error)
     }
     return Promise.reject(error)
-  },
+  }
 )
 
 export type ApiResult<T> = {
@@ -71,18 +78,29 @@ type RequestOptions = AxiosRequestConfig & {
   service?: string
 }
 
-const extractMessage = (error: AxiosError): string => {
+export const extractMessage = (error: AxiosError): string => {
   const payload = error.response?.data as Record<string, unknown> | undefined
   if (payload) {
     if (payload.errors && typeof payload.errors === "object") {
       const first = Object.values(payload.errors as Record<string, unknown>)[0]
       if (Array.isArray(first) && typeof first[0] === "string") return first[0]
     }
-    const candidates = [payload.message, payload.detail, payload.title, payload.error]
-    const found = candidates.find((value) => typeof value === "string" && value.trim().length > 0)
+    const candidates = [
+      payload.message,
+      payload.detail,
+      payload.title,
+      payload.error,
+    ]
+    const found = candidates.find(
+      (value) => typeof value === "string" && value.trim().length > 0
+    )
     if (typeof found === "string") return found
   }
-  return error.response?.statusText || error.message || "Terjadi kesalahan tak terduga"
+  return (
+    error.response?.statusText ||
+    error.message ||
+    "Terjadi kesalahan tak terduga"
+  )
 }
 
 const statusLabel: Record<number, string> = {
@@ -101,15 +119,26 @@ const toastError = async (message: string) => {
 
 export const request = async <T = unknown>(
   options: RequestOptions,
-  config?: { silent?: boolean },
+  config?: { silent?: boolean }
 ): Promise<T> => {
   const { service = "", ...rest } = options
 
   try {
-    const response = await axiosInstance<T>({ ...rest, url: `${service}${rest.url ?? ""}` })
+    const response = await axiosInstance<T>({
+      ...rest,
+      url: `${service}${rest.url ?? ""}`,
+    })
     return response.data
   } catch (error) {
     if (axios.isCancel(error)) throw error
+
+    if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+      try {
+        error.response.data = JSON.parse(await error.response.data.text())
+      } catch {
+        // Non-JSON responses use the existing status and network error messages.
+      }
+    }
 
     if (!config?.silent) {
       if (axios.isAxiosError(error)) {
@@ -120,7 +149,9 @@ export const request = async <T = unknown>(
           const label = statusLabel[status] ?? "Error"
           await toastError(`${status} - ${label} : ${extractMessage(error)}`)
         } else if (error.message.includes("Network Error")) {
-          await toastError("Tidak dapat terhubung ke server (cek koneksi / CORS)")
+          await toastError(
+            "Tidak dapat terhubung ke server (cek koneksi / CORS)"
+          )
         } else {
           await toastError(error.message)
         }

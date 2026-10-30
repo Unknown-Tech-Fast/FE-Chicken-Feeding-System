@@ -26,3 +26,12 @@ export const formatDate = (value: string) => {
     year: "numeric",
   }).format(new Date(year, month - 1, day))
 }
+
+export const periodeLabel = (periode: { tahun: number; bulan: number }) =>
+  formatMonth(`${periode.tahun}-${String(periode.bulan).padStart(2, "0")}`)
+
+export const formatDecimalRupiah = (value: string) => {
+  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(value)
+  if (!match) return value
+  return `Rp ${match[1]}${numberFormatter.format(BigInt(match[2]))},${(match[3] ?? "").padEnd(2, "0")}`
+}

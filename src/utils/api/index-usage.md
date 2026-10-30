@@ -15,11 +15,22 @@ src/utils/api/
 ├── endpoints/
 │   ├── chicken.ts   # getTransaksiAyam, getTransaksiAyamById, createTransaksiAyam
 │   ├── account.ts   # getInquiryAccount, getAccountById
-│   └── reporting.ts # getGeneralLedger, getGeneralLedgerSummary
+│   └── reporting.ts # downloadFinanceReport, previewFinanceReport
 └── index.ts         # barrel — import semua dari sini
 ```
 
 ## Setup environment
+
+Laporan finance menggunakan endpoint BE berikut:
+
+| Laporan | Export Excel | Preview | Filter |
+|---|---|---|---|
+| Ayam | `finance/pivot/export/excel` | Belum tersedia | `import_id` opsional; seluruh periode |
+| OVK | `finance/ovk/export-pivot` | `finance/ovk/preview-pivot` | `year` (2000–2100), `month_from`, `month_to` (1–12) |
+| Pakan / OVD | `finance/pakan-ovd/export-pivot` | `finance/pakan-ovd/preview-pivot` | `year` opsional, `month_from`, `month_to`, `import_id` opsional |
+
+Rentang bulan harus berurutan. Buku Besar belum memiliki endpoint laporan.
+Preview menampilkan matriks dari BE; export mengunduh respons blob `.xlsx`.
 
 Buat `.env.local`:
 

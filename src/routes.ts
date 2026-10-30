@@ -7,6 +7,12 @@ const TransaksiAyamPage = lazy(
 const TransaksiAyamCreatePage = lazy(
   () => import("@/pages/transaksi-ayam/transaksi-ayam-create-page")
 )
+const TransaksiAyamEditPage = lazy(() =>
+  import("@/pages/transaksi-ayam/transaksi-ayam-create-page").then((m) => ({
+    default: m.TransaksiAyamEditPage,
+  }))
+)
+
 const TransaksiAyamDetailPage = lazy(() =>
   import("@/pages/transaksi-ayam/transaksi-ayam-page").then((m) => ({
     default: m.TransaksiAyamDetailPage,
@@ -28,16 +34,10 @@ const OpeningBalanceDetailPage = lazy(() =>
 const AccountPage = lazy(
   () => import("@/pages/transaksi-account/inquiry-account-page")
 )
-const AccountCreatePage = lazy(() =>
-  import("@/pages/transaksi-account/inquiry-account-page").then((m) => ({
-    default: m.AccountCreatePage,
-  }))
+const AccountCreatePage = lazy(
+  () => import("@/pages/transaksi-account/ledger-import-page")
 )
-const AccountDetailPage = lazy(() =>
-  import("@/pages/transaksi-account/inquiry-account-page").then((m) => ({
-    default: m.AccountDetailPage,
-  }))
-)
+
 const ReportingPage = lazy(() => import("@/pages/report/reporting-page"))
 const CostAllocationPage = lazy(() =>
   import("@/pages/cost-allocation-page").then((m) => ({
@@ -90,6 +90,43 @@ const MasterRegionDetailPage = lazy(() =>
   }))
 )
 
+const MasterChickenEditPage = lazy(() =>
+  import("@/pages/master-data/master-chicken-pages").then((m) => ({
+    default: m.MasterChickenEditPage,
+  }))
+)
+const MasterCageEditPage = lazy(() =>
+  import("@/pages/master-data/master-cage-pages").then((m) => ({
+    default: m.MasterCageEditPage,
+  }))
+)
+const MasterRegionEditPage = lazy(() =>
+  import("@/pages/master-data/master-region-pages").then((m) => ({
+    default: m.MasterRegionEditPage,
+  }))
+)
+
+const PeriodeClosingPage = lazy(() =>
+  import("@/pages/master-data/periode-closing-pages").then((m) => ({
+    default: m.PeriodeClosingPage,
+  }))
+)
+const PeriodeClosingCreatePage = lazy(() =>
+  import("@/pages/master-data/periode-closing-pages").then((m) => ({
+    default: m.PeriodeClosingCreatePage,
+  }))
+)
+const PeriodeClosingDetailPage = lazy(() =>
+  import("@/pages/master-data/periode-closing-pages").then((m) => ({
+    default: m.PeriodeClosingDetailPage,
+  }))
+)
+const PeriodeClosingEditPage = lazy(() =>
+  import("@/pages/master-data/periode-closing-pages").then((m) => ({
+    default: m.PeriodeClosingEditPage,
+  }))
+)
+
 type RouteEntry = {
   path: string
   title: string
@@ -135,10 +172,18 @@ export const routes = {
   },
   chicken_inquiry: {
     path: "/transaksi-ayam/inquiry",
-    title: "Entry Transaksi Ayam",
+    title: "Inquiry Transaksi Ayam",
     description: "Riwayat pergerakan ayam per kandang dan flock.",
     component: TransaksiAyamPage,
   },
+  chicken_edit: {
+    path: "/transaksi-ayam/inquiry/:id/edit",
+    title: "Ubah Transaksi Ayam",
+    description: "Perubahan transaksi ayam bulanan.",
+    component: TransaksiAyamEditPage,
+    sidebarRoute: "chicken_inquiry",
+  },
+
   chicken_detail: {
     path: "/transaksi-ayam/inquiry/:id",
     title: "Detail Transaksi Ayam",
@@ -157,13 +202,6 @@ export const routes = {
     title: "Upload Transaksi Account",
     description: "Input transaksi akuntansi melalui file Excel.",
     component: AccountCreatePage,
-    sidebarRoute: "accounts",
-  },
-  accounts_detail: {
-    path: "/transaksi-account/inquiry-account/:id",
-    title: "Detail Transaksi Account",
-    description: "Informasi jurnal dan perhitungan mutasi.",
-    component: AccountDetailPage,
     sidebarRoute: "accounts",
   },
   cost_allocation: {
@@ -206,6 +244,35 @@ export const routes = {
     component: ReportingPage,
     sidebarRoute: "reporting",
   },
+  master_period: {
+    path: "/master-data/periode-closing",
+    title: "Periode Closing",
+    description: "Pengelolaan periode dan status closing bulanan.",
+    component: PeriodeClosingPage,
+    sidebarRoute: "master_period",
+  },
+  master_period_create: {
+    path: "/master-data/periode-closing/create",
+    title: "Tambah Periode Closing",
+    description: "Pengelolaan periode dan status closing bulanan.",
+    component: PeriodeClosingCreatePage,
+    sidebarRoute: "master_period",
+  },
+  master_period_detail: {
+    path: "/master-data/periode-closing/:id",
+    title: "Detail Periode Closing",
+    description: "Pengelolaan periode dan status closing bulanan.",
+    component: PeriodeClosingDetailPage,
+    sidebarRoute: "master_period",
+  },
+  master_period_edit: {
+    path: "/master-data/periode-closing/:id/edit",
+    title: "Ubah Periode Closing",
+    description: "Pengelolaan periode dan status closing bulanan.",
+    component: PeriodeClosingEditPage,
+    sidebarRoute: "master_period",
+  },
+
   master_chicken: {
     path: "/master-data/chicken",
     title: "Master Ayam",
@@ -219,6 +286,14 @@ export const routes = {
     component: MasterChickenCreatePage,
     sidebarRoute: "master_chicken",
   },
+  master_chicken_edit: {
+    path: "/master-data/chicken/:id/edit",
+    title: "Ubah Master Ayam",
+    description: "Perubahan data master ayam.",
+    component: MasterChickenEditPage,
+    sidebarRoute: "master_chicken",
+  },
+
   master_chicken_detail: {
     path: "/master-data/chicken/:id",
     title: "Detail Master Ayam",
@@ -239,6 +314,14 @@ export const routes = {
     component: MasterCageCreatePage,
     sidebarRoute: "master_cage",
   },
+  master_cage_edit: {
+    path: "/master-data/cage/:id/edit",
+    title: "Ubah Master Kandang",
+    description: "Perubahan data master kandang.",
+    component: MasterCageEditPage,
+    sidebarRoute: "master_cage",
+  },
+
   master_cage_detail: {
     path: "/master-data/cage/:id",
     title: "Detail Master Kandang",
@@ -259,6 +342,14 @@ export const routes = {
     component: MasterRegionCreatePage,
     sidebarRoute: "master_region",
   },
+  master_region_edit: {
+    path: "/master-data/region/:id/edit",
+    title: "Ubah Master Wilayah",
+    description: "Perubahan data master wilayah.",
+    component: MasterRegionEditPage,
+    sidebarRoute: "master_region",
+  },
+
   master_region_detail: {
     path: "/master-data/region/:id",
     title: "Detail Master Wilayah",

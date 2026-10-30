@@ -41,6 +41,8 @@ export type SortConvention = "minus" | "separate"
 export const SORT_CONVENTION: SortConvention = "minus"
 
 export type TableQueryMap = {
+  defaultFilters?: TableQuery["filters"]
+  searchKey?: string
   /** Map nama kolom UI → nama kolom backend. Kolom tanpa entri tidak bisa di-sort. */
   sortMap?: Record<string, string>
   /** Map nama filter UI → nama parameter backend. */
@@ -59,7 +61,7 @@ export const createTableQuery = (map: TableQueryMap = {}): TableQuery => ({
   search: "",
   sortBy: map.defaultSortBy ?? null,
   sortOrder: map.defaultSortOrder ?? "asc",
-  filters: {},
+  filters: { ...map.defaultFilters },
 })
 
 /**
@@ -68,7 +70,7 @@ export const createTableQuery = (map: TableQueryMap = {}): TableQuery => ({
  */
 export const buildTableQuery = (
   query: TableQuery,
-  map: TableQueryMap = {},
+  map: TableQueryMap = {}
 ): Record<string, string | number> => {
   const params: Record<string, string | number> = {
     [QUERY_PARAM_KEYS.page]: query.page,
@@ -76,12 +78,15 @@ export const buildTableQuery = (
   }
 
   const search = query.search.trim()
-  if (search) params[QUERY_PARAM_KEYS.search] = search
+  if (search) params[map.searchKey ?? QUERY_PARAM_KEYS.search] = search
 
-  const backendSortKey = query.sortBy ? (map.sortMap?.[query.sortBy] ?? null) : null
+  const backendSortKey = query.sortBy
+    ? (map.sortMap?.[query.sortBy] ?? null)
+    : null
   if (backendSortKey) {
     if (SORT_CONVENTION === "minus") {
-      params[QUERY_PARAM_KEYS.sortBy] = query.sortOrder === "desc" ? `-${backendSortKey}` : backendSortKey
+      params[QUERY_PARAM_KEYS.sortBy] =
+        query.sortOrder === "desc" ? `-${backendSortKey}` : backendSortKey
     } else {
       params[QUERY_PARAM_KEYS.sortBy] = backendSortKey
       params[QUERY_PARAM_KEYS.sortOrder] = query.sortOrder
@@ -103,7 +108,7 @@ export const buildTableQuery = (
 export const nextSortState = (
   current: Pick<TableQuery, "sortBy" | "sortOrder">,
   columnKey: string,
-  map: TableQueryMap = {},
+  map: TableQueryMap = {}
 ): Pick<TableQuery, "sortBy" | "sortOrder"> => {
   if (current.sortBy !== columnKey) {
     return { sortBy: columnKey, sortOrder: "asc" }

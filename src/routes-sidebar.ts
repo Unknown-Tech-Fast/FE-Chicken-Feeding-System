@@ -36,14 +36,14 @@ export const sidebarRoutes: readonly SidebarMenuItem[] = [
     icon: BirdIcon,
     children: [
       { label: "Opening Balance", route: "chicken_opening_balance" },
-      { label: "Entry Transaksi Ayam", route: "chicken_inquiry" },
+      { label: "Inquiry Transaksi Ayam", route: "chicken_inquiry" },
     ],
   },
   {
     id: "account",
     label: "Transaksi Account",
     icon: Wallet01Icon,
-    children: [{ label: "Entry Account", route: "accounts" }],
+    children: [{ label: "Inquiry Account", route: "accounts" }],
   },
   {
     id: "cost_allocation",
@@ -65,6 +65,7 @@ export const sidebarRoutes: readonly SidebarMenuItem[] = [
       { label: "Master Ayam", route: "master_chicken" },
       { label: "Master Kandang", route: "master_cage" },
       { label: "Master Wilayah", route: "master_region" },
+      { label: "Periode Closing", route: "master_period" },
     ],
   },
 ] as const satisfies readonly SidebarMenuItem[]

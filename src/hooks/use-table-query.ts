@@ -17,7 +17,10 @@ import type { Paginated, QueryParams } from "@/utils/api/types"
  * (params, signal) => getTransaksiAyam(params, signal)
  * ```
  */
-export type TableFetcher<T> = (params: QueryParams, signal: AbortSignal) => Promise<Paginated<T>>
+export type TableFetcher<T> = (
+  params: QueryParams,
+  signal: AbortSignal
+) => Promise<Paginated<T>>
 
 type Options<T> = {
   fetcher: TableFetcher<T>
@@ -46,8 +49,13 @@ export type UseTableQueryResult<T> = {
   setSearch: (value: string) => void
   setPage: (page: number) => void
   setPageSize: (size: number) => void
-  setFilter: (key: string, value: string | number | boolean | null | undefined) => void
-  setFilters: (filters: Record<string, string | number | boolean | null | undefined>) => void
+  setFilter: (
+    key: string,
+    value: string | number | boolean | null | undefined
+  ) => void
+  setFilters: (
+    filters: Record<string, string | number | boolean | null | undefined>
+  ) => void
   toggleSort: (columnKey: string) => void
   reset: () => void
   refetch: () => void
@@ -72,21 +80,29 @@ export function useTableQuery<T>({
   searchDebounceMs = 400,
   enabled = true,
 }: Options<T>): UseTableQueryResult<T> {
-  const [query, setQueryState] = React.useState<TableQuery>(() => createTableQuery(map))
+  const [query, setQueryState] = React.useState<TableQuery>(() =>
+    createTableQuery(map)
+  )
 
   // Debounce: copy `search` ke `debouncedSearch` setelah jeda.
   const [debouncedSearch, setDebouncedSearch] = React.useState("")
   React.useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(query.search), searchDebounceMs)
+    const timer = setTimeout(
+      () => setDebouncedSearch(query.search),
+      searchDebounceMs
+    )
     return () => clearTimeout(timer)
   }, [query.search, searchDebounceMs])
 
   const effectiveQuery = React.useMemo<TableQuery>(
     () => ({ ...query, search: debouncedSearch }),
-    [query, debouncedSearch],
+    [query, debouncedSearch]
   )
 
-  const params = React.useMemo(() => buildTableQuery(effectiveQuery, map), [effectiveQuery, map])
+  const params = React.useMemo(
+    () => buildTableQuery(effectiveQuery, map),
+    [effectiveQuery, map]
+  )
   const paramsKey = JSON.stringify(params)
 
   const [result, setResult] = React.useState<{
@@ -100,8 +116,12 @@ export function useTableQuery<T>({
   const [errorKey, setErrorKey] = React.useState<string | null>(null)
   const [error, setError] = React.useState<unknown>(null)
 
-  const [isFetching, setIsFetching] = React.useState(false)
+  const [settledRequest, setSettledRequest] = React.useState<string | null>(
+    null
+  )
   const [refreshToken, setRefreshToken] = React.useState(0)
+  const requestKey = `${paramsKey}:${refreshToken}`
+  const isFetching = enabled && settledRequest !== requestKey
 
   const fetcherRef = React.useRef(fetcher)
   React.useEffect(() => {
@@ -140,7 +160,7 @@ export function useTableQuery<T>({
       })
       .finally(() => {
         if (ignore) return
-        setIsFetching(false)
+        setSettledRequest(requestKey)
       })
 
     return () => {
@@ -174,14 +194,18 @@ export function useTableQuery<T>({
         filters: { ...prev.filters, [key]: value },
       }))
     },
-    [],
+    []
   )
 
   const setFilters = React.useCallback(
     (filters: Record<string, string | number | boolean | null | undefined>) => {
-      setQueryState((prev) => ({ ...prev, page: 1, filters: { ...prev.filters, ...filters } }))
+      setQueryState((prev) => ({
+        ...prev,
+        page: 1,
+        filters: { ...prev.filters, ...filters },
+      }))
     },
-    [],
+    []
   )
 
   const toggleSort = React.useCallback((columnKey: string) => {
