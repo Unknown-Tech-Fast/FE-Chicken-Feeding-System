@@ -145,8 +145,9 @@ export const routes = {
   },
   chicken_create: {
     path: "/transaksi-ayam/create",
-    title: "Tambah Transaksi Ayam",
-    description: "Formulir transaksi ayam baru.",
+    title: "Input Transaksi Bulanan",
+    description:
+      "Input ayam masuk, keluar, mati, jual, dan koreksi untuk periode OPEN.",
     component: TransaksiAyamCreatePage,
     sidebarRoute: "chicken_inquiry",
   },
@@ -158,8 +159,8 @@ export const routes = {
   },
   chicken_opening_balance_create: {
     path: "/transaksi-ayam/opening-balance/create",
-    title: "Upload Opening Balance",
-    description: "Input saldo awal melalui file Excel.",
+    title: "Input Opening Balance",
+    description: "Input saldo awal ayam untuk periode OPEN.",
     component: OpeningBalanceCreatePage,
     sidebarRoute: "chicken_opening_balance",
   },
@@ -178,8 +179,8 @@ export const routes = {
   },
   chicken_edit: {
     path: "/transaksi-ayam/inquiry/:id/edit",
-    title: "Ubah Transaksi Ayam",
-    description: "Perubahan transaksi ayam bulanan.",
+    title: "Ubah Mutasi Transaksi Ayam",
+    description: "Input ayam masuk, keluar, mati, jual, dan koreksi.",
     component: TransaksiAyamEditPage,
     sidebarRoute: "chicken_inquiry",
   },

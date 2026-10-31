@@ -34,7 +34,9 @@ export function resourceError(error: unknown) {
     return error.response
       ? extractMessage(error)
       : "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi."
-  return "Terjadi kesalahan. Silakan coba lagi."
+  return error instanceof Error
+    ? error.message
+    : "Terjadi kesalahan. Silakan coba lagi."
 }
 
 export function useResourceLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
@@ -107,13 +109,17 @@ export function ResourceList<T, R extends { id: number }>({
   searchPlaceholder,
   queryMap,
   renderFilters,
+  createLabel = "Tambah",
+  allowDelete = true,
 }: {
   title: string
   api: ResourceApi<T, R>
   columns: Column<R>[]
   createPath: string
   detailPath: string
-  editPath: string
+  editPath?: string
+  createLabel?: string
+  allowDelete?: boolean
   rowLabel: (row: R) => string
   searchPlaceholder?: string
   queryMap?: TableQueryMap
@@ -165,7 +171,7 @@ export function ResourceList<T, R extends { id: number }>({
             render={<Link to={createPath} />}
             className="sm:ml-auto"
           >
-            Tambah
+            {createLabel}
           </Button>
         </div>
       </div>
@@ -211,31 +217,37 @@ export function ResourceList<T, R extends { id: number }>({
                       >
                         Detail
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        nativeButton={false}
-                        render={
-                          <Link
-                            to={generatePath(editPath, { id: String(row.id) })}
-                            aria-label={`Ubah ${rowLabel(row)}`}
-                          />
-                        }
-                      >
-                        Ubah
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        aria-label={`Hapus ${rowLabel(row)}`}
-                        disabled={deleting}
-                        onClick={() => {
-                          setDeleteError("")
-                          setSelected(row)
-                        }}
-                      >
-                        Hapus
-                      </Button>
+                      {editPath && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          nativeButton={false}
+                          render={
+                            <Link
+                              to={generatePath(editPath, {
+                                id: String(row.id),
+                              })}
+                              aria-label={`Ubah ${rowLabel(row)}`}
+                            />
+                          }
+                        >
+                          Ubah
+                        </Button>
+                      )}
+                      {allowDelete && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          aria-label={`Hapus ${rowLabel(row)}`}
+                          disabled={deleting}
+                          onClick={() => {
+                            setDeleteError("")
+                            setSelected(row)
+                          }}
+                        >
+                          Hapus
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

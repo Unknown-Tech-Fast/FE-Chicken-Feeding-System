@@ -35,6 +35,7 @@ export function TransaksiAyamPage() {
       title="Daftar Transaksi Ayam Bulanan"
       api={chickenApi}
       createPath={routes.chicken_create.path}
+      createLabel="Input Transaksi Bulanan"
       detailPath={routes.chicken_detail.path}
       editPath={routes.chicken_edit.path}
       rowLabel={transaksiLabel}

@@ -1,87 +1,131 @@
-import { generatePath, useParams } from "react-router-dom"
-import {
-  MockDataTable,
-  type MockColumn,
-} from "@/components/data-table/mock-data-table"
-import { ExcelUpload } from "@/components/excel-upload"
-import { RecordDetail, RecordNotFound } from "@/components/record-detail"
-import {
-  openingBalances,
-  cageName,
-  regionName,
-  type OpeningBalance,
-} from "@/data/mock-data"
-import { formatMonth, formatNumber } from "@/lib/format"
+import { useCallback } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useParams } from "react-router-dom"
+import { ResourceDetail, ResourceList } from "@/components/api-record"
+import { FormField } from "@/components/form-fields"
+import { Input } from "@/components/ui/input"
+import { formatNumber, periodeLabel } from "@/lib/format"
 import { routes } from "@/routes"
+import { openingBalanceApi } from "@/utils/api/endpoints/chicken"
+import type { TableQueryMap } from "@/utils/api/query"
+import {
+  openingBalanceSchema,
+  OPENING_BALANCE_DEFAULT_VALUES,
+  transaksiLabel,
+  type OpeningBalanceFormValues,
+} from "./transaksi-ayam-schema"
+import { ChickenCreateForm } from "./chicken-create-form"
 
-const columns: MockColumn<OpeningBalance>[] = [
-  {
-    key: "periodeBulan",
-    label: "Periode Bulan",
-    value: (row) => row.periodeBulan,
-    render: (row) => formatMonth(row.periodeBulan),
-  },
-  {
-    key: "wilayah",
-    label: "Wilayah",
-    value: (row) => regionName(row.lokasiId),
-  },
-  { key: "kandang", label: "Kandang", value: (row) => cageName(row.kandangId) },
-  { key: "flockO", label: "Flock O", value: (row) => row.flockO },
-  {
-    key: "umurMinggu",
-    label: "Umur Minggu",
-    value: (row) => row.umurMinggu,
-    render: (row) => formatNumber(row.umurMinggu),
-    align: "right",
-  },
-  {
-    key: "saldoAwal",
-    label: "Saldo Awal",
-    value: (row) => row.saldoAwal,
-    render: (row) => formatNumber(row.saldoAwal) + " ekor",
-    align: "right",
-  },
-]
+const queryMap: TableQueryMap = { searchKey: "flock_no" }
+
 export function TransaksiAyamOpeningBalancePage() {
   return (
-    <MockDataTable
+    <ResourceList
       title="Daftar Opening Balance"
-      rows={openingBalances}
-      columns={columns}
+      api={openingBalanceApi}
       createPath={routes.chicken_opening_balance_create.path}
-      createLabel="Create / Upload Excel"
-      detailPath={(row) =>
-        generatePath(routes.chicken_opening_balance_detail.path, { id: row.id })
-      }
+      createLabel="Input Opening Balance"
+      detailPath={routes.chicken_opening_balance_detail.path}
+      allowDelete={false}
+      rowLabel={transaksiLabel}
+      searchPlaceholder="Cari Flock No…"
+      queryMap={queryMap}
+      columns={[
+        {
+          label: "Periode Bulan",
+          render: (row) =>
+            row.periode ? periodeLabel(row.periode) : row.periode_id,
+        },
+        {
+          label: "Status Periode",
+          render: (row) => row.periode?.status ?? "-",
+        },
+        {
+          label: "Wilayah",
+          render: (row) => row.kandang?.lokasi?.nama_lokasi ?? "-",
+        },
+        {
+          label: "Kandang",
+          render: (row) => row.kandang?.kode_kandang ?? row.kandang_id,
+        },
+        {
+          label: "Fase Ayam",
+          render: (row) => row.master_ayam?.nama_fase ?? row.master_ayam_id,
+        },
+        { label: "Flock No", render: (row) => row.flock_no || "-" },
+        {
+          label: "Umur (minggu)",
+          render: (row) => formatNumber(row.umur_minggu),
+        },
+        {
+          label: "Saldo Awal (ekor)",
+          render: (row) => formatNumber(row.so_ekor),
+        },
+      ]}
     />
   )
 }
+
 export function OpeningBalanceCreatePage() {
+  const form = useForm<OpeningBalanceFormValues>({
+    resolver: zodResolver(openingBalanceSchema),
+    mode: "onTouched",
+    defaultValues: OPENING_BALANCE_DEFAULT_VALUES,
+  })
+  const error = form.formState.errors.so_ekor?.message
   return (
-    <ExcelUpload
-      title="Upload Opening Balance"
+    <ChickenCreateForm
+      title="Input Opening Balance"
       backTo={routes.chicken_opening_balance.path}
-    />
+      form={form}
+      api={openingBalanceApi}
+      help="Pilih periode OPEN dan isi saldo awal. Mutasi dicatat melalui Inquiry Transaksi Ayam."
+    >
+      <FormField id="so_ekor" label="Saldo Awal (ekor)" required error={error}>
+        <Input
+          id="so_ekor"
+          type="number"
+          min={0}
+          step={1}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? "so_ekor-error" : undefined}
+          {...form.register("so_ekor", { valueAsNumber: true })}
+        />
+      </FormField>
+    </ChickenCreateForm>
   )
 }
+
 export function OpeningBalanceDetailPage() {
-  const { id } = useParams()
-  const row = openingBalances.find((item) => item.id === id)
-  if (!row)
-    return <RecordNotFound backTo={routes.chicken_opening_balance.path} />
+  const { id = "" } = useParams()
+  const load = useCallback(
+    (signal: AbortSignal) => openingBalanceApi.get(id, signal),
+    [id]
+  )
   return (
-    <RecordDetail
-      title="Detail Opening Balance"
+    <ResourceDetail
+      title={(row) => `Opening Balance ${transaksiLabel(row)}`}
       backTo={routes.chicken_opening_balance.path}
-      fields={[
-        { label: "ID", value: row.id },
-        { label: "Periode Bulan", value: formatMonth(row.periodeBulan) },
-        { label: "Wilayah", value: regionName(row.lokasiId) },
-        { label: "Kandang", value: cageName(row.kandangId) },
-        { label: "Flock O", value: row.flockO },
-        { label: "Umur Minggu", value: formatNumber(row.umurMinggu) },
-        { label: "Saldo Awal", value: formatNumber(row.saldoAwal) + " ekor" },
+      load={load}
+      fields={(row) => [
+        {
+          label: "Periode Bulan",
+          value: row.periode ? periodeLabel(row.periode) : row.periode_id,
+        },
+        { label: "Status Periode", value: row.periode?.status ?? "-" },
+        { label: "Wilayah", value: row.kandang?.lokasi?.nama_lokasi ?? "-" },
+        {
+          label: "Kandang",
+          value: row.kandang?.kode_kandang ?? row.kandang_id,
+        },
+        {
+          label: "Fase Ayam",
+          value: row.master_ayam?.nama_fase ?? row.master_ayam_id,
+        },
+        { label: "Flock No", value: row.flock_no || "-" },
+        { label: "Umur (minggu)", value: formatNumber(row.umur_minggu) },
+        { label: "Saldo Awal (ekor)", value: formatNumber(row.so_ekor) },
       ]}
     />
   )
